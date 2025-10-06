@@ -1,0 +1,139 @@
+# CyberCLI Scan Profiles
+profiles:
+
+  test:
+    description: "Web Application Vulnerability Scan"
+    modes:
+      testmode:
+        description: "test mode"
+        tools:
+          zap: "aggressive"
+
+  web-vuln-scan:
+    description: "Web Application Vulnerability Scan"
+    modes:
+      light:
+        description: "Quick health-check. Low noise, fast."
+        tools:
+          nmap: "-T4 -p 80,443 {{target}}"
+          nikto: "-h {{target}}"
+          zap: "quick-scan"
+          sqlmap: "-u https://{{target}} --batch --level=1 --risk=1"
+          dirsearch: "-u https://{{target}} -e php,html -t 20"
+
+      medium:
+        description: "Balanced staging/QA scan."
+        tools:
+          nmap: "-sV -p- {{target}}"
+          nikto: "-h {{target}} -Plugins apache,ssl"
+          zap: "medium"
+          sqlmap: "-u https://{{target}} --batch --level=3 --risk=2"
+          dirsearch: "-u https://{{target}} -e php,asp,aspx,html -r -t 50"
+
+      aggressive:
+        description: "BEAST MODE: max flags, max noise."
+        tools:
+          nmap: "-A -T5 {{target}}"
+          nslookup: "-query=ANY {{target}}"
+          dig: "-t AXFR {{target}}"
+          theHarvester: "-d {{target}} -b all -l 200"
+          subfinder: "-d {{target}} -silent -all | tee subdomains.txt"
+          amass: "enum -d {{target}} -active -brute -w SecLists/Discovery/DNS/bitquark-subdomains-top100000.txt -rf resolvers.txt --min-for-recursive 2"
+          subjack: "-w subdomains.txt -t 100 -timeout 30 -ssl -c fingerprints.json -o takeover_results.txt"
+          dirsearch: "-u https://{{target}} -e php,asp,aspx,html,js -x 403,404 -t 100"
+          nikto: "-h {{target}} -Display V -Tuning 1234567890"
+          zap: "aggressive"
+          sqlmap: "-u https://{{target}} --batch --level=5 --risk=3 --technique BEUSTQ"
+
+  dns-infra-mapping:
+    description: "DNS & Infrastructure Mapping"
+    modes:
+      light:
+        description: "Passive DNS & email intel."
+        tools:
+          nslookup: "-query=A {{target}}"
+          dig: "A {{target}} +short"
+          amass: "enum -d {{target}} -passive -asn"
+          theHarvester: "-d {{target}} -b all -l 100"
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+
+      deep:
+        description: "Full DNS mapping, AXFR attempts."
+        tools:
+          nslookup: "-type=AXFR {{target}}"
+          dig: "-t AXFR {{target}}"
+          amass: "enum -d {{target}} -passive -asn -ip -whois -timeout 10 -max-dns-queries 10000"
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+
+  subdomain-recon:
+    description: "Subdomain Recon & Takeover Check"
+    modes:
+      quick-sweep:
+        description: "Fast passive enumeration + takeover check."
+        tools:
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+          amass: "enum -d {{target}} -passive"
+          subjack: "-w {{out_dir}}/subdomains.txt -t 100 -timeout 30 -ssl -c fingerprints.json -o takeover_results.txt"
+
+      exhaustive:
+        description: "Passive + brute + permutations."
+        tools:
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+          amass: "enum -d {{target}} -active -ip -whois"
+          subjack: "-w {{out_dir}}/subdomains.txt -t 100 -timeout 30 -ssl -c fingerprints.json -o takeover_results.txt"
+
+      aggressive:
+        description: "All-out takeover hunter."
+        tools:
+          amass: "enum -d {{target}} -active -brute -ip -whois -w SecLists/Discovery/DNS/bitquark-subdomains-top100000.txt -rf resolvers.txt --min-for-recursive 2"
+          subfinder: "-d {{target}} -all -silent -timeout 10 | tee subdomains.txt"
+          subjack: "-w {{out_dir}}/subdomains.txt -t 100 -timeout 30 -ssl -c fingerprints.json -o takeover_results.txt"
+
+  api-assessment:
+    description: "API Endpoint Testing & Fuzzing"
+    modes:
+      light:
+        description: "Detect public API endpoints."
+        tools:
+          dirsearch: "-u https://{{target}} -e json,xml -t 20"
+          sqlmap: "-u https://{{target}} --batch --level=1 --risk=1 -m apis.txt"
+
+      intermediate:
+        description: "Balanced API fuzz & scan."
+        tools:
+          dirsearch: "-u https://{{target}} -e json,xml -r -t 50"
+          sqlmap: "-u https://{{target}} --batch --level=3 --risk=2 -m apis.txt"
+          zap: "medium"
+          nikto: "-h https://{{target}} -Tuning 123"
+
+      aggressive:
+        description: "Full DAST/fuzz/contract audit mode."
+        tools:
+          dirsearch: "-u https://{{target}} -e php,html,js,json,xml -t 100 --deep-recursive"
+          nikto: "-h https://{{target}} -Tuning 123456"
+          sqlmap: "-u https://{{target}} --batch --level=5 --risk=3 -m apis.txt --technique BEUSTQ"
+          zap: "aggressive"
+
+  minimal-recon:
+    description: "Minimal Footprint Recon"
+    modes:
+      silent:
+        description: "Ultra-stealthy."
+        tools:
+          nmap: "-sS -Pn {{target}}"
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+          dig: "A {{target}} +short"
+          theHarvester: "-d {{target}} -b all -l 50"
+
+      low-slow:
+        description: "Low & slow ops."
+        tools:
+          nmap: "-sn --max-retries 1 --host-timeout 5m {{target}}"
+          nslookup: "-query=MX {{target}}"
+          theHarvester: "-d {{target}} -b all -l 50"
+          subfinder: "-d {{target}} -silent | tee subdomains.txt"
+          amass: "enum -d {{target}} -passive"
+          dirsearch: "-u https://{{target}} -e html -t 5"
+          zap: "quick-scan"
+          nikto: "-h {{target}}"
+          sqlmap: "-u https://{{target}} --batch --level=1 --risk=1
